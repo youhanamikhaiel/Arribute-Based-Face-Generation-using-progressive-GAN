@@ -432,6 +432,25 @@ def create_lsun(tfrecord_dir, lmdb_dir, resolution=256, max_images=None):
         
 #----------------------------------------------------------------------------
 
+def create_lfw32(tfrecord_dir, lfw32_dir, cx=32, cy=32):
+    print('Loading LFW32 from "%s"' % lfw32_dir)
+    glob_pattern = os.path.join(lfw32_dir, '*.jpg')
+    image_filenames = sorted(glob.glob(glob_pattern))
+    expected_images = 13233
+    if len(image_filenames) != expected_images:
+        error('Expected to find %d images' % expected_images)
+    
+    with TFRecordExporter(tfrecord_dir, len(image_filenames)) as tfr:
+        order = tfr.choose_shuffled_order()
+        for idx in range(order.size):
+            img = np.asarray(PIL.Image.open(image_filenames[order[idx]]))
+            assert img.shape == (64, 64, 3)
+            img = img[cy - 16 : cy + 16, cx - 16 : cx + 16]
+            img = img.transpose(2, 0, 1) # HWC => CHW
+            tfr.add_image(img)
+
+#----------------------------------------------------------------------------
+
 def create_celeba(tfrecord_dir, celeba_dir, cx=89, cy=121):
     print('Loading CelebA from "%s"' % celeba_dir)
     glob_pattern = os.path.join(celeba_dir, 'img_align_celeba_png', '*.png')
