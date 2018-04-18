@@ -201,7 +201,7 @@ def train_progressive_gan(
     misc.save_image_grid(grid_reals, os.path.join(result_subdir, 'reals.png'), drange=training_set.dynamic_range, grid_size=grid_size)
     misc.save_image_grid(grid_fakes, os.path.join(result_subdir, 'fakes%06d.png' % 0), drange=drange_net, grid_size=grid_size)
     #summary_log = tf.summary.FileWriter(result_subdir)
-    with tf.Session() as sess:
+    with tf.get_default_session() as sess:
           # `sess.graph` provides access to the graph used in a `tf.Session`.
           summary_log = tf.summary.FileWriter(result_subdir, sess.graph)
     if save_tf_graph:
