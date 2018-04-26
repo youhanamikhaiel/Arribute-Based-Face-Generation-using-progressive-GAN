@@ -335,6 +335,7 @@ def create_cifar10(tfrecord_dir, cifar10_dir):
         labels.append(data['labels'])
     images = np.concatenate(images)
     labels = np.concatenate(labels)
+    labels = labels.astype(np.int32)
     assert images.shape == (50000, 3, 32, 32) and images.dtype == np.uint8
     assert labels.shape == (50000,) and labels.dtype == np.int32
     assert np.min(images) == 0 and np.max(images) == 255
@@ -432,22 +433,81 @@ def create_lsun(tfrecord_dir, lmdb_dir, resolution=256, max_images=None):
         
 #----------------------------------------------------------------------------
 
-def create_lfw32(tfrecord_dir, lfw32_dir, cx=32, cy=32):
-    print('Loading LFW32 from "%s"' % lfw32_dir)
-    glob_pattern = os.path.join(lfw32_dir, '*.jpg')
-    image_filenames = sorted(glob.glob(glob_pattern))
-    expected_images = 13233
-    if len(image_filenames) != expected_images:
-        error('Expected to find %d images' % expected_images)
+def create_lfw32(tfrecord_dir, lfw32_dir, cx=32, cy=32, with_attributes=True):
+    if with_attributes:
+        print('Loading LFW32 from "%s"' % lfw32_dir)
+        glob_pattern = os.path.join(lfw32_dir, '*.jpg')
+        image_filenames = sorted(glob.glob(glob_pattern))
+        expected_images = 13233
+        if len(image_filenames) != expected_images:
+            error('Expected to find %d images' % expected_images)
+            
+        def get_label(label_string):
+            label = label_string.split('\t')[0:2]
+            if int(label[1]) < 10:
+                label_filename = "_".join(label[0].split(' ') + ['000' + label[1] + '_64x64.jpg'])
+            elif int(label[1]) < 100:
+                label_filename = "_".join(label[0].split(' ') + ['00' + label[1] + '_64x64.jpg'])
+            else:
+                label_filename = "_".join(label[0].split(' ') + ['0' + label[1] + '_64x64.jpg'])
+            return label_filename
+
+        labels_filename = os.path.join(lfw32_dir, 'lfw_attributes.txt')
+        labels_file  = open(labels_filename, "r")
+        labels_string = labels_file.readlines() 
+        attributes_headline = labels_string[1].split('\t')[3:]
+        labels_string = sorted(labels_string[2:], key=lambda label_string: get_label(label_string))
+        
+        ##Which attributes belong to which image
+        file_count = 0
+        label_id = []
+        corresponding_image_id = []
+        images_length = len(image_filenames)
+        found = 1
+        for i in range(len(labels_string)):
+            file_count = i
+            label_filename = get_label(labels_string[i])
+            while (label_filename != image_filenames[file_count].split('/')[-1]):
+                file_count += 1
+                if file_count >= images_length:
+                    file_count = 0
+                if file_count == i:
+                    found = 0
+                    error('Expected to find %s image' % image_filenames[file_count].split('/')[-1])
+            if found:
+                label_id.append(i)
+                corresponding_image_id.append(file_count) #the index of the attributes along with the index of the image
+            found = 1
+            
+        attributes = [[float(attribute.strip('\n')) for attribute in label_string.split('\t')[2:]] for label_string in labels_string]
+        attributes = np.asarray(attributes)
+        
+        with TFRecordExporter(tfrecord_dir, len(corresponding_image_id)) as tfr:
+            order = tfr.choose_shuffled_order()
+            for idx in range(order.size):
+                img = np.asarray(PIL.Image.open(image_filenames[corresponding_image_id[order[idx]]]))
+                assert img.shape == (64, 64, 3)
+                img = img[cy - 16 : cy + 16, cx - 16 : cx + 16]
+                img = img.transpose(2, 0, 1) # HWC => CHW
+                tfr.add_image(img)
+            tfr.add_labels(attributes[order])
     
-    with TFRecordExporter(tfrecord_dir, len(image_filenames)) as tfr:
-        order = tfr.choose_shuffled_order()
-        for idx in range(order.size):
-            img = np.asarray(PIL.Image.open(image_filenames[order[idx]]))
-            assert img.shape == (64, 64, 3)
-            img = img[cy - 16 : cy + 16, cx - 16 : cx + 16]
-            img = img.transpose(2, 0, 1) # HWC => CHW
-            tfr.add_image(img)
+    else:
+        print('Loading LFW32 from "%s"' % lfw32_dir)
+        glob_pattern = os.path.join(lfw32_dir, '*.jpg')
+        image_filenames = sorted(glob.glob(glob_pattern))
+        expected_images = 13233
+        if len(image_filenames) != expected_images:
+            error('Expected to find %d images' % expected_images)
+
+        with TFRecordExporter(tfrecord_dir, len(image_filenames)) as tfr:
+            order = tfr.choose_shuffled_order()
+            for idx in range(order.size):
+                img = np.asarray(PIL.Image.open(image_filenames[order[idx]]))
+                assert img.shape == (64, 64, 3)
+                img = img[cy - 16 : cy + 16, cx - 16 : cx + 16]
+                img = img.transpose(2, 0, 1) # HWC => CHW
+                tfr.add_image(img)
 
 #----------------------------------------------------------------------------
 
