@@ -15,6 +15,8 @@ import traceback
 import numpy as np
 import tensorflow as tf
 import PIL.Image
+from skimage.transform import resize ####
+
 
 import tfutil
 import dataset
@@ -481,6 +483,41 @@ def create_lfw32(tfrecord_dir, lfw32_dir, cx=32, cy=32, with_attributes=True):
             
         attributes = [[float(attribute.strip('\n')) for attribute in label_string.split('\t')[2:]] for label_string in labels_string]
         attributes = np.asarray(attributes)
+        #attributes = attributes[:,0:1] ##choose the first attribute only
+        #attributes = attributes - min(attributes) ##substract the minimum to make the minimum equals zero
+        #attributes = (attributes / max(attributes)) ##divide by the maximum to make the range 0-1
+        
+        ##one hot vector
+        #attributes = attributes[:,0:1]
+        #attributes = attributes - min(attributes)
+        #attributes = np.round(attributes,1)
+        #quantization = 5;
+        #step_ = (max(attributes) - min(attributes))/quantization
+        #new_attributes = np.zeros((attributes.shape[0],attributes.shape[1]*quantization),int)
+        #for i in range(len(new_attributes)): 
+        #    new_attributes[i,int(np.floor(attributes[i]/step_))-1] = 1;
+        #    if (int(np.floor(attributes[i]/step_)) == 5):
+        #        new_attributes[i,3] = 1; #outlier
+        #new_attributes = new_attributes[:,0:4]
+        #attributes = new_attributes
+        
+        ##male female
+        #attributes = attributes[:,0:1]
+        #new_attributes = np.zeros((attributes.shape[0],2),np.float32)
+        #for i in range(len(attributes)): 
+        #    new_attributes[i,int(attributes[i] < 0)] = 1.
+        #attributes = new_attributes 
+        
+        ##female, Asian, White, Black
+        attributes = attributes[:,0:4]
+        new_attributes = np.zeros((attributes.shape[0],4),np.float32)
+        for i in range(len(attributes)): 
+            new_attributes[i,0] = float(attributes[i,0] < 0) #female
+            new_attributes[i,1] = float(attributes[i,1] > 0) #Asian
+            new_attributes[i,2] = float(attributes[i,2] > 0) #White
+            new_attributes[i,3] = float(attributes[i,3] > 0) #Black
+        attributes = new_attributes 
+        
         
         with TFRecordExporter(tfrecord_dir, len(corresponding_image_id)) as tfr:
             order = tfr.choose_shuffled_order()
@@ -507,26 +544,80 @@ def create_lfw32(tfrecord_dir, lfw32_dir, cx=32, cy=32, with_attributes=True):
                 assert img.shape == (64, 64, 3)
                 img = img[cy - 16 : cy + 16, cx - 16 : cx + 16]
                 img = img.transpose(2, 0, 1) # HWC => CHW
-                tfr.add_image(img)
+                tfr.add_image(img)          
 
 #----------------------------------------------------------------------------
 
-def create_celeba(tfrecord_dir, celeba_dir, cx=89, cy=121):
-    print('Loading CelebA from "%s"' % celeba_dir)
-    glob_pattern = os.path.join(celeba_dir, 'img_align_celeba_png', '*.png')
-    image_filenames = sorted(glob.glob(glob_pattern))
-    expected_images = 202599
-    if len(image_filenames) != expected_images:
-        error('Expected to find %d images' % expected_images)
-    
-    with TFRecordExporter(tfrecord_dir, len(image_filenames)) as tfr:
-        order = tfr.choose_shuffled_order()
-        for idx in range(order.size):
-            img = np.asarray(PIL.Image.open(image_filenames[order[idx]]))
-            assert img.shape == (218, 178, 3)
-            img = img[cy - 64 : cy + 64, cx - 64 : cx + 64]
-            img = img.transpose(2, 0, 1) # HWC => CHW
-            tfr.add_image(img)
+def create_celeba(tfrecord_dir, celeba_dir, cx=89, cy=121, with_attributes=True): ####add attribute extraction
+    if with_attributes:
+        #x = 20000; #####
+        print('Loading CelebA from "%s"' % celeba_dir)
+        glob_pattern = os.path.join(celeba_dir, 'img_align_celeba_png', '*.png')
+        image_filenames = sorted(glob.glob(glob_pattern))
+        #image_filenames = image_filenames[:x]; #####
+        expected_images = 202599
+        #expected_images = x; #####
+        if len(image_filenames) != expected_images:
+            error('Expected to find %d images' % expected_images)
+            
+        labels_filename = os.path.join(celeba_dir, 'img_align_celeba_png', 'list_attr_celeba.txt')
+        labels_file  = open(labels_filename, "r")
+        labels_string = labels_file.readlines() 
+        attributes_headline = labels_string[1].split(' ')[:-1]
+        labels_string = sorted(labels_string[2:])
+        #labels_string = labels_string[:x] #####
+        if len(labels_string) != expected_images:
+            error('Expected to find %d attributes' % expected_images)
+            
+        attributes = [[float(attribute.strip('\n').replace('-1', '0')) for attribute in label_string.replace('  ',' ').split(' ')[1:]] 
+                      for label_string in labels_string]
+        attributes = np.asarray(attributes)
+        
+        new_attributes = np.zeros((attributes.shape[0],17), dtype=np.float32);
+        new_attributes[:,0] = attributes[:,0] #5_oclock_shadow
+        new_attributes[:,1:4] = attributes[:,3:6] #wavy_hair, Bald, Bangs
+        new_attributes[:,4:6] = attributes[:,8:10] #black_hair, blond hair
+        new_attributes[:,6] = attributes[:,11] #brown_hair
+        new_attributes[:,7:10] = attributes[:,15:18] #hat, goatee, gray_hair
+        new_attributes[:,10] = attributes[:,20] #male
+        new_attributes[:,11] = attributes[:,22] #mustache
+        new_attributes[:,12] = attributes[:,24] #no_beard
+        new_attributes[:,13] = attributes[:,30] #side_burns
+        new_attributes[:,14] = attributes[:,32] #straigth_hair
+        new_attributes[:,15] = attributes[:,35] #hat
+        new_attributes[:,16] = attributes[:,39] #young
+        attributes = new_attributes
+
+
+        with TFRecordExporter(tfrecord_dir, len(image_filenames)) as tfr: ##
+        #with TFRecordExporter(tfrecord_dir, x) as tfr: #####
+            order = tfr.choose_shuffled_order()
+            for idx in range(order.size):
+                img = np.asarray(PIL.Image.open(image_filenames[order[idx]]))
+                #assert img.shape == (218, 178, 3) ##
+                img = img[cy - 64 : cy + 64, cx - 64 : cx + 64]
+                img = resize(img, (64, 64, 3), mode='reflect', preserve_range=True) ##### resize the image
+                img = img.transpose(2, 0, 1) # HWC => CHW
+                tfr.add_image(img)
+            tfr.add_labels(attributes[order])
+     
+    else:
+        print('Loading CelebA from "%s"' % celeba_dir)
+        glob_pattern = os.path.join(celeba_dir, 'img_align_celeba_png', '*.png')
+        image_filenames = sorted(glob.glob(glob_pattern))
+        expected_images = 202599
+        if len(image_filenames) != expected_images:
+            error('Expected to find %d images' % expected_images)
+
+        with TFRecordExporter(tfrecord_dir, len(image_filenames)) as tfr:
+            order = tfr.choose_shuffled_order()
+            for idx in range(order.size):
+                img = np.asarray(PIL.Image.open(image_filenames[order[idx]]))
+                assert img.shape == (218, 178, 3) 
+                img = img[cy - 64 : cy + 64, cx - 64 : cx + 64]
+                img = img.transpose(2, 0, 1) # HWC => CHW
+                tfr.add_image(img)
+        
 
 #----------------------------------------------------------------------------
 

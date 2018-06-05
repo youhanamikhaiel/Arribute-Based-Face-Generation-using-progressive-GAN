@@ -172,7 +172,11 @@ def G_paper(
     
     latents_in.set_shape([None, latent_size])
     labels_in.set_shape([None, label_size])
+    #labels_in = tf.contrib.layers.fully_connected(labels_in,int(labels_in.shape[1]),act) ##put a fully connected layer at the beginning 
+    #labels_in = tf.contrib.layers.fully_connected(labels_in,100,act) ##put a fully connected layer at the beginning 
+    labels_in = tf.contrib.layers.fully_connected(labels_in,100,tf.nn.sigmoid) ##put a fully connected layer at the beginning, make it a sigmoid 
     combo_in = tf.cast(tf.concat([latents_in, labels_in], axis=1), dtype)
+    combo_in = tf.contrib.layers.fully_connected(combo_in,512,act) ##put a fully connected layer after concatenation
     lod_in = tf.cast(tf.get_variable('lod', initializer=np.float32(0.0), trainable=False), dtype)
 
     # Building blocks.

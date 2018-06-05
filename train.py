@@ -139,7 +139,7 @@ def train_progressive_gan(
     mirror_augment          = False,        # Enable mirror augment?
     drange_net              = [-1,1],       # Dynamic range used when feeding image data to the networks.
     image_snapshot_ticks    = 1,            # How often to export image snapshots?
-    network_snapshot_ticks  = 5,           # How often to export network snapshots?
+    network_snapshot_ticks  = 1,           # How often to export network snapshots?
     save_tf_graph           = False,        # Include full TensorFlow computation graph in the tfevents file?
     save_weight_histograms  = False,        # Include weight histograms in the tfevents file?
     resume_run_id           = None,         # Run ID or network pkl to resume training from, None = start from scratch.
@@ -149,6 +149,11 @@ def train_progressive_gan(
 
     maintenance_start_time = time.time()
     training_set = dataset.load_dataset(data_dir=config.data_dir, verbose=True, **config.dataset)
+    
+    ##two class (male female)
+    resume_run_id = 58 ####
+    resume_kimg = 5027.7 ####
+    #network_snapshot_ticks = 1 ####
 
     # Construct networks.
     with tf.device('/gpu:0'):
@@ -175,6 +180,13 @@ def train_progressive_gan(
         labels_split    = tf.split(labels, config.num_gpus)
     G_opt = tfutil.Optimizer(name='TrainG', learning_rate=lrate_in, **config.G_opt)
     D_opt = tfutil.Optimizer(name='TrainD', learning_rate=lrate_in, **config.D_opt)
+    turn = tf.Variable(0, name='turn', dtype=tf.int8) ####
+    increment_turn = tf.assign_add(turn, 1, name='increment_turn') ####
+    turn_threshold_for_label_dis = tf.constant(0, name='turn_threshold_for_label', dtype=tf.int8) ####
+    turn_threshold_for_label_gen = tf.constant(0, name='turn_threshold_for_label', dtype=tf.int8) ####
+    sess = tf.get_default_session() ####
+    sess.run(turn.initializer) ####
+    
     for gpu in range(config.num_gpus):
         with tf.name_scope('GPU%d' % gpu), tf.device('/gpu:%d' % gpu):
             G_gpu = G if gpu == 0 else G.clone(G.name + '_shadow')
@@ -183,9 +195,10 @@ def train_progressive_gan(
             reals_gpu = process_reals(reals_split[gpu], lod_in, mirror_augment, training_set.dynamic_range, drange_net)
             labels_gpu = labels_split[gpu]
             with tf.name_scope('G_loss'), tf.control_dependencies(lod_assign_ops):
-                G_loss = tfutil.call_func_by_name(G=G_gpu, D=D_gpu, opt=G_opt, training_set=training_set, minibatch_size=minibatch_split, **config.G_loss)
+                G_loss = tfutil.call_func_by_name(G=G_gpu, D=D_gpu, opt=G_opt, training_set=training_set, minibatch_size=minibatch_split, turn=turn, turn_threshold_for_label=turn_threshold_for_label_gen, **config.G_loss) ####
             with tf.name_scope('D_loss'), tf.control_dependencies(lod_assign_ops):
-                D_loss = tfutil.call_func_by_name(G=G_gpu, D=D_gpu, opt=D_opt, training_set=training_set, minibatch_size=minibatch_split, reals=reals_gpu, labels=labels_gpu, **config.D_loss)
+                D_loss = tfutil.call_func_by_name(G=G_gpu, D=D_gpu, opt=D_opt, training_set=training_set, minibatch_size=minibatch_split, turn=turn, turn_threshold_for_label=turn_threshold_for_label_dis, reals=reals_gpu, labels=labels_gpu, **config.D_loss) ####
+
             G_opt.register_gradients(tf.reduce_mean(G_loss), G_gpu.trainables)
             D_opt.register_gradients(tf.reduce_mean(D_loss), D_gpu.trainables)
     G_train_op = G_opt.apply_updates()
@@ -236,6 +249,7 @@ def train_progressive_gan(
         # Perform maintenance tasks once per tick.
         done = (cur_nimg >= total_kimg * 1000)
         if cur_nimg >= tick_start_nimg + sched.tick_kimg * 1000 or done:
+            sess.run(increment_turn) ####
             cur_tick += 1
             cur_time = time.time()
             tick_kimg = (cur_nimg - tick_start_nimg) / 1000.0
