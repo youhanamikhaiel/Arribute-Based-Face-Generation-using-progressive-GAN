@@ -68,10 +68,12 @@ def G_wgan_acgan_sigmoid(G, D, opt, training_set, minibatch_size, turn, turn_thr
 def G_wgan_acgan_weighted(G, D, opt, training_set, minibatch_size, turn, turn_threshold_for_label = 0, ####
     cond_weight = 1.0): # Weight of the conditioning term.
 
-    cond_weight = 6; ##
-    #cond_weight = tf.cond(tf.greater_equal(turn,10), lambda: 2., lambda: cond_weight)
-    #cond_weight = tf.cond(tf.greater_equal(turn,15), lambda: 3., lambda: cond_weight)
-    #cond_weight = tf.cond(tf.greater_equal(turn,20), lambda: 4., lambda: cond_weight)
+    #cond_weight = 6; ##
+    cond_weight = tf.cond(tf.greater_equal(turn,10), lambda: 2., lambda: cond_weight)
+    cond_weight = tf.cond(tf.greater_equal(turn,15), lambda: 3., lambda: cond_weight)
+    cond_weight = tf.cond(tf.greater_equal(turn,20), lambda: 4., lambda: cond_weight)
+    cond_weight = tf.cond(tf.greater_equal(turn,25), lambda: 5., lambda: cond_weight)
+    cond_weight = tf.cond(tf.greater_equal(turn,30), lambda: 6., lambda: cond_weight)
     latents = tf.random_normal([minibatch_size] + G.input_shapes[0][1:])
     labels = training_set.get_random_labels_tf(minibatch_size)
     fake_images_out = G.get_output_for(latents, labels, is_training=True)
@@ -194,10 +196,12 @@ def D_wgangp_acgan_weighted(G, D, opt, training_set, minibatch_size, reals, labe
     wgan_target     = 1.0,      # Target value for gradient magnitudes.
     cond_weight     = 1.0):     # Weight of the conditioning terms.
 
-    cond_weight = 6 ##
-    #cond_weight = tf.cond(tf.greater_equal(turn,10), lambda: 2., lambda: cond_weight)
-    #cond_weight = tf.cond(tf.greater_equal(turn,15), lambda: 3., lambda: cond_weight)
-    #cond_weight = tf.cond(tf.greater_equal(turn,20), lambda: 4., lambda: cond_weight)
+    #cond_weight = 6 ##
+    cond_weight = tf.cond(tf.greater_equal(turn,10), lambda: 2., lambda: cond_weight)
+    cond_weight = tf.cond(tf.greater_equal(turn,15), lambda: 3., lambda: cond_weight)
+    cond_weight = tf.cond(tf.greater_equal(turn,20), lambda: 4., lambda: cond_weight)
+    cond_weight = tf.cond(tf.greater_equal(turn,25), lambda: 5., lambda: cond_weight)
+    cond_weight = tf.cond(tf.greater_equal(turn,30), lambda: 6., lambda: cond_weight)
     latents = tf.random_normal([minibatch_size] + G.input_shapes[0][1:])
     fake_images_out = G.get_output_for(latents, labels, is_training=True)
     real_scores_out, real_labels_out = fp32(D.get_output_for(reals, is_training=True))

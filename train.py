@@ -151,8 +151,8 @@ def train_progressive_gan(
     training_set = dataset.load_dataset(data_dir=config.data_dir, verbose=True, **config.dataset)
     
     ##two class (male female)
-    resume_run_id = 58 ####
-    resume_kimg = 5027.7 ####
+    #resume_run_id = 60 ####
+    #resume_kimg = 6067.7 ####
     #network_snapshot_ticks = 1 ####
 
     # Construct networks.

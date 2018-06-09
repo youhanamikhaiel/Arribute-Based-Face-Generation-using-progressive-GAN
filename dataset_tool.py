@@ -578,7 +578,7 @@ def create_celeba(tfrecord_dir, celeba_dir, cx=89, cy=121, with_attributes=True)
         new_attributes[:,1:4] = attributes[:,3:6] #wavy_hair, Bald, Bangs
         new_attributes[:,4:6] = attributes[:,8:10] #black_hair, blond hair
         new_attributes[:,6] = attributes[:,11] #brown_hair
-        new_attributes[:,7:10] = attributes[:,15:18] #hat, goatee, gray_hair
+        new_attributes[:,7:10] = attributes[:,15:18] #Eyeglasses, goatee, gray_hair
         new_attributes[:,10] = attributes[:,20] #male
         new_attributes[:,11] = attributes[:,22] #mustache
         new_attributes[:,12] = attributes[:,24] #no_beard
